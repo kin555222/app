@@ -31,9 +31,96 @@ jwt = JWTManager(app)
 # Import models after db initialization
 from models import User, Resource, Quiz, UserProgress, Community, CommunityMember, Message, Alert
 
-# Create tables
+# Create tables and handle schema migrations
+def ensure_database_schema():
+    """Ensure database has the correct schema, handling migrations if needed"""
+    try:
+        # Try to create all tables (this is safe - won't overwrite existing ones)
+        db.create_all()
+        
+        # Check if users table has the required columns
+        inspector = db.inspect(db.engine)
+        if 'users' in inspector.get_table_names():
+            columns = [col['name'] for col in inspector.get_columns('users')]
+            required_columns = ['state', 'city', 'locality', 'phone_number']
+            missing_columns = [col for col in required_columns if col not in columns]
+            
+            if missing_columns:
+                print(f"Missing columns detected: {missing_columns}")
+                print("Attempting to add missing columns...")
+                
+                # Add missing columns
+                for column in missing_columns:
+                    try:
+                        if column == 'state':
+                            db.session.execute(text("ALTER TABLE users ADD COLUMN state VARCHAR(100)"))
+                        elif column == 'city':
+                            db.session.execute(text("ALTER TABLE users ADD COLUMN city VARCHAR(100)"))
+                        elif column == 'locality':
+                            db.session.execute(text("ALTER TABLE users ADD COLUMN locality VARCHAR(200)"))
+                        elif column == 'phone_number':
+                            db.session.execute(text("ALTER TABLE users ADD COLUMN phone_number VARCHAR(15)"))
+                        db.session.commit()
+                        print(f"Added column: {column}")
+                    except Exception as e:
+                        print(f"Failed to add column {column}: {e}")
+                        db.session.rollback()
+        
+        print("Database schema check completed successfully")
+        return True
+    except Exception as e:
+        print(f"Database schema check failed: {e}")
+        return False
+
+def seed_initial_data():
+    """Add initial sample data if database is empty"""
+    try:
+        # Check if we have any resources
+        resource_count = Resource.query.count()
+        if resource_count == 0:
+            print("Database is empty. Adding sample resources...")
+            
+            sample_resources = [
+                {
+                    'title': 'Earthquake Preparedness Guide',
+                    'description': 'Complete guide to preparing for earthquakes',
+                    'category': 'earthquake',
+                    'content_type': 'article'
+                },
+                {
+                    'title': 'Flood Safety Measures',
+                    'description': 'How to stay safe during floods',
+                    'category': 'flood',
+                    'content_type': 'article'
+                },
+                {
+                    'title': 'Emergency Kit Essentials',
+                    'description': 'What to include in your emergency kit',
+                    'category': 'general',
+                    'content_type': 'infographic'
+                }
+            ]
+            
+            for resource_data in sample_resources:
+                resource = Resource(**resource_data)
+                db.session.add(resource)
+            
+            db.session.commit()
+            print(f"Added {len(sample_resources)} sample resources")
+        else:
+            print(f"Database already has {resource_count} resources")
+        
+        return True
+    except Exception as e:
+        print(f"Failed to seed initial data: {e}")
+        db.session.rollback()
+        return False
+
 with app.app_context():
-    db.create_all()
+    # Import text for SQL operations
+    from sqlalchemy import text
+    ensure_database_schema()
+    seed_initial_data()
 
 # Import routes
 from routes import auth_bp, resources_bp, quiz_bp, user_bp
