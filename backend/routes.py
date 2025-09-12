@@ -1,3 +1,4 @@
+import os
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, create_access_token, get_jwt_identity
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -5,6 +6,12 @@ from datetime import datetime
 from database import db
 from models import User, Resource, Quiz, UserProgress, Community, CommunityMember, Message, Alert
 import json
+from functools import wraps
+import logging
+
+# Configure logging to a file
+logging.basicConfig(filename=os.path.join(os.path.dirname(__file__), 'backend_login_debug.log'), level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Create blueprints
 auth_bp = Blueprint('auth', __name__)
@@ -14,6 +21,32 @@ user_bp = Blueprint('user', __name__)
 community_bp = Blueprint('community', __name__)
 message_bp = Blueprint('message', __name__)
 alert_bp = Blueprint('alert', __name__)
+
+# Admin required decorator
+def admin_required(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        try:
+            user_id_str = get_jwt_identity()
+            if not user_id_str:
+                return jsonify({'error': 'No user identity found in token'}), 401
+            
+            # Convert string back to integer for database query
+            user_id = int(user_id_str)
+            user = User.query.get(user_id)
+            
+            if not user:
+                return jsonify({'error': 'User not found'}), 404
+                
+            if not user.is_admin:
+                return jsonify({'error': 'Admin access required'}), 403
+                
+            return fn(*args, **kwargs)
+        except (ValueError, TypeError) as e:
+            return jsonify({'error': 'Invalid user identity in token'}), 401
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    return wrapper
 
 # Authentication routes
 @auth_bp.route('/signup', methods=['POST'])
@@ -43,8 +76,8 @@ def signup():
         db.session.add(new_user)
         db.session.commit()
         
-        # Create access token
-        access_token = create_access_token(identity=new_user.id)
+        # Create access token (convert user ID to string for JWT compatibility)
+        access_token = create_access_token(identity=str(new_user.id))
         
         return jsonify({
             'message': 'User created successfully',
@@ -59,18 +92,24 @@ def signup():
 def login():
     try:
         data = request.get_json()
+        logging.info(f"Login attempt: {data}")
         
         if not data or not data.get('username') or not data.get('password'):
             return jsonify({'error': 'Username and password are required'}), 400
         
         # Find user
         user = User.query.filter_by(username=data['username']).first()
+        logging.info(f"User found: {user}")
         
+        if user:
+            password_check = check_password_hash(user.password_hash, data['password'])
+            logging.info(f"Password check result: {password_check}")
+
         if not user or not check_password_hash(user.password_hash, data['password']):
             return jsonify({'error': 'Invalid username or password'}), 401
         
-        # Create access token
-        access_token = create_access_token(identity=user.id)
+        # Create access token (convert user ID to string for JWT compatibility)
+        access_token = create_access_token(identity=str(user.id))
         
         return jsonify({
             'message': 'Login successful',
@@ -79,6 +118,7 @@ def login():
         }), 200
         
     except Exception as e:
+        logging.error(f"Error in login: {e}")
         return jsonify({'error': str(e)}), 500
 
 # Resource routes
@@ -119,12 +159,93 @@ def get_resource(resource_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# Admin resource management routes
+@resources_bp.route('/admin/resources', methods=['POST'])
+@jwt_required()
+@admin_required
+def create_resource():
+    try:
+        data = request.get_json()
+        
+        if not data or not data.get('title') or not data.get('description') or not data.get('category'):
+            return jsonify({'error': 'Title, description, and category are required'}), 400
+        
+        new_resource = Resource(
+            title=data['title'],
+            description=data['description'],
+            content_url=data.get('content_url'),
+            content_type=data.get('content_type', 'article'),
+            category=data['category']
+        )
+        
+        db.session.add(new_resource)
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Resource created successfully',
+            'resource': new_resource.to_dict()
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@resources_bp.route('/admin/resources/<int:resource_id>', methods=['PUT'])
+@jwt_required()
+@admin_required
+def update_resource(resource_id):
+    try:
+        data = request.get_json()
+        resource = Resource.query.get(resource_id)
+        
+        if not resource:
+            return jsonify({'error': 'Resource not found'}), 404
+        
+        if 'title' in data:
+            resource.title = data['title']
+        if 'description' in data:
+            resource.description = data['description']
+        if 'content_url' in data:
+            resource.content_url = data['content_url']
+        if 'content_type' in data:
+            resource.content_type = data['content_type']
+        if 'category' in data:
+            resource.category = data['category']
+            
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Resource updated successfully',
+            'resource': resource.to_dict()
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@resources_bp.route('/admin/resources/<int:resource_id>', methods=['DELETE'])
+@jwt_required()
+@admin_required
+def delete_resource(resource_id):
+    try:
+        resource = Resource.query.get(resource_id)
+        
+        if not resource:
+            return jsonify({'error': 'Resource not found'}), 404
+            
+        db.session.delete(resource)
+        db.session.commit()
+        
+        return jsonify({'message': 'Resource deleted successfully'}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 # Quiz routes
 @quiz_bp.route('/quiz/submit', methods=['POST'])
 @jwt_required()
 def submit_quiz():
     try:
-        user_id = get_jwt_identity()
+        user_id_str = get_jwt_identity()
+        user_id = int(user_id_str)
         data = request.get_json()
         
         if not data or not data.get('resource_id') or not data.get('answers'):
@@ -179,12 +300,129 @@ def submit_quiz():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@quiz_bp.route('/quizzes', methods=['GET'])
+@jwt_required()
+@admin_required
+def get_quizzes():
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+        resource_id = request.args.get('resource_id', type=int)
+        
+        query = Quiz.query
+        
+        if resource_id:
+            query = query.filter_by(resource_id=resource_id)
+        
+        quizzes = query.order_by(Quiz.created_at.desc()).paginate(
+            page=page, per_page=per_page, error_out=False
+        )
+        
+        # Include resource information
+        quiz_data = []
+        for quiz in quizzes.items:
+            quiz_dict = quiz.to_dict_with_answer()
+            quiz_dict['resource'] = quiz.resource.to_dict() if quiz.resource else None
+            quiz_data.append(quiz_dict)
+        
+        return jsonify({
+            'quizzes': quiz_data,
+            'pagination': {
+                'page': page,
+                'per_page': per_page,
+                'total': quizzes.total,
+                'pages': quizzes.pages,
+                'has_next': quizzes.has_next,
+                'has_prev': quizzes.has_prev
+            }
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@quiz_bp.route('/quizzes', methods=['POST'])
+@jwt_required()
+@admin_required
+def create_quiz():
+    try:
+        data = request.get_json()
+        
+        if not data or not data.get('resource_id') or not data.get('question') or not data.get('options') or not data.get('correct_answer'):
+            return jsonify({'error': 'Resource ID, question, options, and correct answer are required'}), 400
+        
+        new_quiz = Quiz(
+            resource_id=data['resource_id'],
+            question=data['question'],
+            options=json.dumps(data['options']),
+            correct_answer=data['correct_answer']
+        )
+        
+        db.session.add(new_quiz)
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Quiz created successfully',
+            'quiz': new_quiz.to_dict_with_answer()
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@quiz_bp.route('/quizzes/<int:quiz_id>', methods=['PUT'])
+@jwt_required()
+@admin_required
+def update_quiz(quiz_id):
+    try:
+        data = request.get_json()
+        quiz = Quiz.query.get(quiz_id)
+        
+        if not quiz:
+            return jsonify({'error': 'Quiz not found'}), 404
+        
+        if 'resource_id' in data:
+            quiz.resource_id = data['resource_id']
+        if 'question' in data:
+            quiz.question = data['question']
+        if 'options' in data:
+            quiz.options = json.dumps(data['options'])
+        if 'correct_answer' in data:
+            quiz.correct_answer = data['correct_answer']
+            
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Quiz updated successfully',
+            'quiz': quiz.to_dict_with_answer()
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@quiz_bp.route('/quizzes/<int:quiz_id>', methods=['DELETE'])
+@jwt_required()
+@admin_required
+def delete_quiz(quiz_id):
+    try:
+        quiz = Quiz.query.get(quiz_id)
+        
+        if not quiz:
+            return jsonify({'error': 'Quiz not found'}), 404
+            
+        db.session.delete(quiz)
+        db.session.commit()
+        
+        return jsonify({'message': 'Quiz deleted successfully'}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 # User routes
 @user_bp.route('/user/<int:user_id>', methods=['GET'])
 @jwt_required()
 def get_user_profile(user_id):
     try:
-        current_user_id = get_jwt_identity()
+        current_user_id_str = get_jwt_identity()
+        current_user_id = int(current_user_id_str)
         
         # Users can only access their own profile
         if current_user_id != user_id:
@@ -218,12 +456,58 @@ def get_user_profile(user_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@user_bp.route('/user/change-password', methods=['POST'])
+@jwt_required()
+def change_password():
+    try:
+        user_id_str = get_jwt_identity()
+        user_id = int(user_id_str)
+        data = request.get_json()
+        
+        if not data or not data.get('current_password') or not data.get('new_password'):
+            return jsonify({'error': 'Current password and new password are required'}), 400
+        
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Verify current password
+        if not check_password_hash(user.password_hash, data['current_password']):
+            return jsonify({'error': 'Current password is incorrect'}), 401
+        
+        # Validate new password strength
+        new_password = data['new_password']
+        if len(new_password) < 8:
+            return jsonify({'error': 'New password must be at least 8 characters long'}), 400
+        
+        # Check for password complexity (optional but recommended)
+        has_upper = any(c.isupper() for c in new_password)
+        has_lower = any(c.islower() for c in new_password)
+        has_digit = any(c.isdigit() for c in new_password)
+        
+        if not (has_upper and has_lower and has_digit):
+            return jsonify({
+                'error': 'New password must contain at least one uppercase letter, one lowercase letter, and one digit'
+            }), 400
+        
+        # Update password
+        user.password_hash = generate_password_hash(new_password)
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Password changed successfully'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 # Community routes
 @community_bp.route('/communities', methods=['GET'])
 @jwt_required()
 def get_communities():
     try:
-        user_id = get_jwt_identity()
+        user_id_str = get_jwt_identity()
+        user_id = int(user_id_str)
         user = User.query.get(user_id)
         
         # Get query parameters
@@ -255,7 +539,8 @@ def get_communities():
 @jwt_required()
 def create_community():
     try:
-        user_id = get_jwt_identity()
+        user_id_str = get_jwt_identity()
+        user_id = int(user_id_str)
         data = request.get_json()
         
         # Validate required fields
@@ -300,7 +585,8 @@ def create_community():
 @jwt_required()
 def get_community(community_id):
     try:
-        user_id = get_jwt_identity()
+        user_id_str = get_jwt_identity()
+        user_id = int(user_id_str)
         
         community = Community.query.get(community_id)
         if not community:
@@ -340,7 +626,8 @@ def get_community(community_id):
 @jwt_required()
 def join_community(community_id):
     try:
-        user_id = get_jwt_identity()
+        user_id_str = get_jwt_identity()
+        user_id = int(user_id_str)
         
         community = Community.query.get(community_id)
         if not community:
@@ -392,7 +679,8 @@ def join_community(community_id):
 @jwt_required()
 def leave_community(community_id):
     try:
-        user_id = get_jwt_identity()
+        user_id_str = get_jwt_identity()
+        user_id = int(user_id_str)
         
         membership = CommunityMember.query.filter_by(
             community_id=community_id,
@@ -420,7 +708,8 @@ def leave_community(community_id):
 @jwt_required()
 def get_messages(community_id):
     try:
-        user_id = get_jwt_identity()
+        user_id_str = get_jwt_identity()
+        user_id = int(user_id_str)
         
         # Check if user is a member of the community
         membership = CommunityMember.query.filter_by(
@@ -462,7 +751,8 @@ def get_messages(community_id):
 @jwt_required()
 def send_message(community_id):
     try:
-        user_id = get_jwt_identity()
+        user_id_str = get_jwt_identity()
+        user_id = int(user_id_str)
         data = request.get_json()
         
         if not data or not data.get('content'):
@@ -502,7 +792,8 @@ def send_message(community_id):
 @jwt_required()
 def pin_message(message_id):
     try:
-        user_id = get_jwt_identity()
+        user_id_str = get_jwt_identity()
+        user_id = int(user_id_str)
         
         message = Message.query.get(message_id)
         if not message:
@@ -534,7 +825,8 @@ def pin_message(message_id):
 @jwt_required()
 def get_alerts():
     try:
-        user_id = get_jwt_identity()
+        user_id_str = get_jwt_identity()
+        user_id = int(user_id_str)
         user = User.query.get(user_id)
         
         # Get active alerts for user's location
@@ -583,7 +875,8 @@ def get_alerts():
 @jwt_required()
 def create_alert():
     try:
-        user_id = get_jwt_identity()
+        user_id_str = get_jwt_identity()
+        user_id = int(user_id_str)
         data = request.get_json()
         
         if not data or not data.get('title') or not data.get('message') or not data.get('alert_type') or not data.get('severity'):
@@ -630,7 +923,8 @@ def create_alert():
 @jwt_required()
 def dismiss_alert(alert_id):
     try:
-        user_id = get_jwt_identity()
+        user_id_str = get_jwt_identity()
+        user_id = int(user_id_str)
         
         alert = Alert.query.get(alert_id)
         if not alert:
@@ -641,6 +935,172 @@ def dismiss_alert(alert_id):
         db.session.commit()
         
         return jsonify({'message': 'Alert dismissed successfully'}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Admin user management routes
+@user_bp.route('/admin/users', methods=['GET'])
+@jwt_required()
+@admin_required
+def get_all_users():
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+        search = request.args.get('search', '')
+        
+        query = User.query
+        
+        if search:
+            query = query.filter(
+                db.or_(
+                    User.username.contains(search),
+                    User.email.contains(search)
+                )
+            )
+        
+        users = query.order_by(User.created_at.desc()).paginate(
+            page=page, per_page=per_page, error_out=False
+        )
+        
+        return jsonify({
+            'users': [user.to_dict() for user in users.items],
+            'pagination': {
+                'page': page,
+                'per_page': per_page,
+                'total': users.total,
+                'pages': users.pages,
+                'has_next': users.has_next,
+                'has_prev': users.has_prev
+            }
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@user_bp.route('/admin/users/<int:user_id>/toggle-admin', methods=['POST'])
+@jwt_required()
+@admin_required
+def toggle_user_admin(user_id):
+    try:
+        user = User.query.get(user_id)
+        
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        
+        user.is_admin = not user.is_admin
+        db.session.commit()
+        
+        return jsonify({
+            'message': f'User admin status {"enabled" if user.is_admin else "disabled"}',
+            'user': user.to_dict()
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Admin analytics routes
+@resources_bp.route('/admin/analytics', methods=['GET'])
+@jwt_required()
+@admin_required
+def get_analytics():
+    try:
+        # Basic counts
+        total_users = User.query.count()
+        total_resources = Resource.query.count()
+        total_quizzes = Quiz.query.count()
+        total_communities = Community.query.count()
+        
+        # User activity
+        recent_users = User.query.filter(
+            User.created_at >= datetime.utcnow().replace(day=1)
+        ).count()  # Users this month
+        
+        # Quiz completion stats
+        quiz_completions = UserProgress.query.filter(
+            UserProgress.quiz_score.isnot(None)
+        ).count()
+        
+        avg_quiz_score = db.session.query(
+            db.func.avg(UserProgress.quiz_score)
+        ).filter(
+            UserProgress.quiz_score.isnot(None)
+        ).scalar() or 0
+        
+        # Resource popularity
+        popular_resources = db.session.query(
+            Resource.title,
+            db.func.count(UserProgress.id).label('completions')
+        ).outerjoin(UserProgress).group_by(Resource.id).order_by(
+            db.func.count(UserProgress.id).desc()
+        ).limit(5).all()
+        
+        # Category distribution
+        category_stats = db.session.query(
+            Resource.category,
+            db.func.count(Resource.id).label('count')
+        ).group_by(Resource.category).all()
+        
+        return jsonify({
+            'overview': {
+                'total_users': total_users,
+                'total_resources': total_resources,
+                'total_quizzes': total_quizzes,
+                'total_communities': total_communities,
+                'recent_users': recent_users,
+                'quiz_completions': quiz_completions,
+                'avg_quiz_score': round(avg_quiz_score, 1) if avg_quiz_score else 0
+            },
+            'popular_resources': [
+                {'title': title, 'completions': completions}
+                for title, completions in popular_resources
+            ],
+            'category_distribution': [
+                {'category': category, 'count': count}
+                for category, count in category_stats
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Admin quiz management
+@quiz_bp.route('/admin/quizzes', methods=['GET'])
+@jwt_required()
+@admin_required
+def get_all_quizzes():
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+        resource_id = request.args.get('resource_id', type=int)
+        
+        query = Quiz.query
+        
+        if resource_id:
+            query = query.filter_by(resource_id=resource_id)
+        
+        quizzes = query.order_by(Quiz.created_at.desc()).paginate(
+            page=page, per_page=per_page, error_out=False
+        )
+        
+        # Include resource information
+        quiz_data = []
+        for quiz in quizzes.items:
+            quiz_dict = quiz.to_dict_with_answer()
+            quiz_dict['resource'] = quiz.resource.to_dict() if quiz.resource else None
+            quiz_data.append(quiz_dict)
+        
+        return jsonify({
+            'quizzes': quiz_data,
+            'pagination': {
+                'page': page,
+                'per_page': per_page,
+                'total': quizzes.total,
+                'pages': quizzes.pages,
+                'has_next': quizzes.has_next,
+                'has_prev': quizzes.has_prev
+            }
+        }), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500

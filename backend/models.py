@@ -15,6 +15,7 @@ class User(db.Model):
     city = db.Column(db.String(100), nullable=True)
     locality = db.Column(db.String(200), nullable=True)
     phone_number = db.Column(db.String(15), nullable=True)
+    is_admin = db.Column(db.Boolean, default=False)
     
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -33,6 +34,7 @@ class User(db.Model):
             'city': self.city,
             'locality': self.locality,
             'phone_number': self.phone_number,
+            'is_admin': self.is_admin,
             'created_at': self.created_at.isoformat()
         }
 

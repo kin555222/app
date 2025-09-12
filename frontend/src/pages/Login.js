@@ -35,7 +35,11 @@ const Login = () => {
     const result = await login(formData.username, formData.password);
     
     if (result.success) {
-      navigate('/');
+      if (result.user.is_admin) {
+        navigate('/admin');
+      } else {
+        navigate('/profile');
+      }
     } else {
       setError(result.error);
     }

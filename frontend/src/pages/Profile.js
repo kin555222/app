@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { userAPI } from '../services/api';
+import PasswordChange from '../components/PasswordChange';
 
 const Profile = () => {
   const { user, logout } = useAuth();
@@ -262,6 +263,18 @@ const Profile = () => {
               </Link>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Account Settings Section */}
+      <div className="mt-8 bg-white rounded-lg shadow-md p-8">
+        <h2 className="text-2xl font-bold text-gray-900 mb-6">⚙️ Account Settings</h2>
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">🔐 Security</h3>
+          <p className="text-gray-600 mb-6">
+            Keep your account secure by updating your password regularly. Choose a strong password that you don't use elsewhere.
+          </p>
+          <PasswordChange />
         </div>
       </div>
 

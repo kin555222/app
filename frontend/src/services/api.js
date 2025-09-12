@@ -51,15 +51,17 @@ export const authAPI = {
   },
 
   getCurrentUser: async () => {
-    // This would be implemented when backend supports it
     const token = localStorage.getItem('token');
     if (!token) return null;
     
-    // For now, decode the token payload (in production, make API call)
     try {
       const payload = JSON.parse(atob(token.split('.')[1]));
-      return { id: payload.sub }; // JWT 'sub' field contains user ID
-    } catch {
+      // Now, make an actual API call to get the full user profile
+      const response = await api.get(`/user/${payload.sub}`);
+      return response.data.user; // Assuming the backend returns { user: {...} }
+    } catch (error) {
+      console.error('Error fetching current user profile:', error);
+      // If token is invalid or expired, the response interceptor will handle redirect
       return null;
     }
   }
@@ -86,6 +88,22 @@ export const quizAPI = {
       answers
     });
     return response.data;
+  },
+  getAll: async () => {
+    const response = await api.get('/quizzes');
+    return response.data;
+  },
+  create: async (quizData) => {
+    const response = await api.post('/quizzes', quizData);
+    return response.data;
+  },
+  update: async (quizId, quizData) => {
+    const response = await api.put(`/quizzes/${quizId}`, quizData);
+    return response.data;
+  },
+  delete: async (quizId) => {
+    const response = await api.delete(`/quizzes/${quizId}`);
+    return response.data;
   }
 };
 
@@ -93,6 +111,87 @@ export const quizAPI = {
 export const userAPI = {
   getProfile: async (userId) => {
     const response = await api.get(`/user/${userId}`);
+    return response.data;
+  },
+  
+  changePassword: async (currentPassword, newPassword) => {
+    const response = await api.post('/user/change-password', {
+      current_password: currentPassword,
+      new_password: newPassword
+    });
+    return response.data;
+  }
+};
+
+// Admin APIs
+export const adminAPI = {
+  // Analytics
+  getAnalytics: async () => {
+    const response = await api.get('/admin/analytics');
+    return response.data;
+  },
+  
+  // User Management
+  getAllUsers: async (params = {}) => {
+    const response = await api.get('/admin/users', { params });
+    return response.data;
+  },
+  
+  toggleUserAdmin: async (userId) => {
+    const response = await api.post(`/admin/users/${userId}/toggle-admin`);
+    return response.data;
+  },
+  
+  // Resource Management
+  createResource: async (resourceData) => {
+    const response = await api.post('/admin/resources', resourceData);
+    return response.data;
+  },
+  
+  updateResource: async (resourceId, resourceData) => {
+    const response = await api.put(`/admin/resources/${resourceId}`, resourceData);
+    return response.data;
+  },
+  
+  deleteResource: async (resourceId) => {
+    const response = await api.delete(`/admin/resources/${resourceId}`);
+    return response.data;
+  },
+  
+  // Quiz Management
+  getAllQuizzes: async (params = {}) => {
+    const response = await api.get('/admin/quizzes', { params });
+    return response.data;
+  },
+  
+  createQuiz: async (quizData) => {
+    const response = await api.post('/quizzes', quizData);
+    return response.data;
+  },
+  
+  updateQuiz: async (quizId, quizData) => {
+    const response = await api.put(`/quizzes/${quizId}`, quizData);
+    return response.data;
+  },
+  
+  deleteQuiz: async (quizId) => {
+    const response = await api.delete(`/quizzes/${quizId}`);
+    return response.data;
+  },
+  
+  // Alert Management
+  getAllAlerts: async (params = {}) => {
+    const response = await api.get('/alerts', { params });
+    return response.data;
+  },
+  
+  createAlert: async (alertData) => {
+    const response = await api.post('/alerts', alertData);
+    return response.data;
+  },
+  
+  dismissAlert: async (alertId) => {
+    const response = await api.post(`/alerts/${alertId}/dismiss`);
     return response.data;
   }
 };

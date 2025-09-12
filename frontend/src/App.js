@@ -11,6 +11,8 @@ import Emergency from './pages/Emergency';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import ProtectedRoute from './components/ProtectedRoute';
+import Admin from './pages/Admin';
+import AdminRoute from './components/AdminRoute';
 
 function App() {
   return (
@@ -32,6 +34,11 @@ function App() {
                 <ProtectedRoute>
                   <Profile />
                 </ProtectedRoute>
+              } />
+              <Route path="/admin" element={
+                <AdminRoute>
+                  <Admin />
+                </AdminRoute>
               } />
               <Route path="/emergency" element={<Emergency />} />
               <Route path="/login" element={<Login />} />

@@ -8,6 +8,7 @@ const Navbar = () => {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+
   const handleLogout = () => {
     logout();
     navigate('/');
@@ -67,6 +68,17 @@ const Navbar = () => {
                 >
                   <span className="mr-1">👤</span>
                   Profile
+                </Link>
+              )}
+              {isAuthenticated && user?.is_admin && (
+                <Link
+                  to="/admin"
+                  className={`nav-link ${
+                    isActivePath('/admin') ? 'nav-link-active' : 'nav-link-inactive'
+                  }`}
+                >
+                  <span className="mr-1">👑</span>
+                  Admin
                 </Link>
               )}
             </div>
@@ -158,6 +170,18 @@ const Navbar = () => {
                 >
                   <span className="mr-2">👤</span>
                   Profile
+                </Link>
+              )}
+              {isAuthenticated && user?.is_admin && (
+                <Link
+                  to="/admin"
+                  className={`mobile-menu-link ${
+                    isActivePath('/admin') ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600' : ''
+                  }`}
+                  onClick={closeMobileMenu}
+                >
+                  <span className="mr-2">👑</span>
+                  Admin
                 </Link>
               )}
             </div>

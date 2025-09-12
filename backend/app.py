@@ -12,7 +12,7 @@ load_dotenv()
 app = Flask(__name__)
 
 # Configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///disaster_prep.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///' + os.path.abspath(os.path.join(os.path.dirname(__file__), 'instance', 'disaster_prep.db')))
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'your-secret-key-change-in-production')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)
@@ -28,6 +28,19 @@ db.init_app(app)
 cors = CORS(app)
 jwt = JWTManager(app)
 
+# JWT Error Handlers
+@jwt.expired_token_loader
+def expired_token_callback(jwt_header, jwt_payload):
+    return jsonify({'msg': 'Token has expired'}), 401
+
+@jwt.invalid_token_loader
+def invalid_token_callback(error):
+    return jsonify({'msg': 'Invalid token'}), 401
+
+@jwt.unauthorized_loader
+def missing_token_callback(error):
+    return jsonify({'msg': 'Authorization token is required'}), 401
+
 # Import models after db initialization
 from models import User, Resource, Quiz, UserProgress, Community, CommunityMember, Message, Alert
 
@@ -42,7 +55,7 @@ def ensure_database_schema():
         inspector = db.inspect(db.engine)
         if 'users' in inspector.get_table_names():
             columns = [col['name'] for col in inspector.get_columns('users')]
-            required_columns = ['state', 'city', 'locality', 'phone_number']
+            required_columns = ['state', 'city', 'locality', 'phone_number', 'is_admin']
             missing_columns = [col for col in required_columns if col not in columns]
             
             if missing_columns:
@@ -60,6 +73,8 @@ def ensure_database_schema():
                             db.session.execute(text("ALTER TABLE users ADD COLUMN locality VARCHAR(200)"))
                         elif column == 'phone_number':
                             db.session.execute(text("ALTER TABLE users ADD COLUMN phone_number VARCHAR(15)"))
+                        elif column == 'is_admin':
+                            db.session.execute(text("ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT FALSE"))
                         db.session.commit()
                         print(f"Added column: {column}")
                     except Exception as e:
@@ -119,17 +134,18 @@ def seed_initial_data():
 with app.app_context():
     # Import text for SQL operations
     from sqlalchemy import text
-    ensure_database_schema()
-    seed_initial_data()
 
 # Import routes
-from routes import auth_bp, resources_bp, quiz_bp, user_bp
+from routes import auth_bp, resources_bp, quiz_bp, user_bp, community_bp, message_bp, alert_bp
 
 # Register blueprints
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
 app.register_blueprint(resources_bp, url_prefix='/api')
 app.register_blueprint(quiz_bp, url_prefix='/api')
 app.register_blueprint(user_bp, url_prefix='/api')
+app.register_blueprint(community_bp, url_prefix='/api')
+app.register_blueprint(message_bp, url_prefix='/api')
+app.register_blueprint(alert_bp, url_prefix='/api')
 
 @app.route('/')
 def home():
@@ -140,4 +156,13 @@ def health_check():
     return jsonify({"status": "healthy", "timestamp": datetime.utcnow().isoformat()})
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # Initialize database on startup
+    with app.app_context():
+        print("Initializing database...")
+        ensure_database_schema()
+        seed_initial_data()
+        print("Database initialization complete.")
+    
+    from waitress import serve
+    print("Starting Disaster Preparedness API on http://0.0.0.0:5000")
+    serve(app, host='0.0.0.0', port=5000)

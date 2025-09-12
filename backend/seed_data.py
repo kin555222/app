@@ -1,7 +1,27 @@
 from app import app
 from database import db
-from models import Resource, Quiz
+from models import Resource, Quiz, User
 import json
+from werkzeug.security import generate_password_hash
+
+def create_admin_user():
+    """Creates or updates the default admin user"""
+    admin_user = User.query.filter_by(username='admin').first()
+    password_hash = generate_password_hash('admin')
+    if admin_user:
+        admin_user.password_hash = password_hash
+        admin_user.is_admin = True
+        print("Admin user updated successfully!")
+    else:
+        admin_user = User(
+            username='admin',
+            email='admin@example.com',
+            password_hash=password_hash,
+            is_admin=True
+        )
+        db.session.add(admin_user)
+        print("Admin user created successfully!")
+    db.session.commit()
 
 def create_sample_data():
     """Create sample educational resources and quizzes"""
@@ -187,7 +207,9 @@ if __name__ == '__main__':
         # Clear existing data
         Quiz.query.delete()
         Resource.query.delete()
+        User.query.delete()
         db.session.commit()
         
         # Create new sample data
+        create_admin_user()
         create_sample_data()

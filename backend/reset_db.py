@@ -14,6 +14,7 @@ load_dotenv()
 # Import database and models
 from database import db
 from models import User, Resource, Quiz, UserProgress, Community, CommunityMember, Message, Alert
+from werkzeug.security import generate_password_hash
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -75,7 +76,7 @@ def reset_database():
 
 def seed_sample_data():
     """Add some sample data for testing"""
-    print("🌱 Seeding sample data...")
+    print("Seeding sample data...")
     
     with app.app_context():
         try:
@@ -106,32 +107,39 @@ def seed_sample_data():
                 db.session.add(resource)
             
             db.session.commit()
-            print("✅ Sample resources added")
+            print("Sample resources added")
+
+            # Add sample admin user
+            admin_user = User(
+                username='admin',
+                email='admin@example.com',
+                password_hash='admin_password', # Using plain text for testing
+                is_admin=True
+            )
+            db.session.add(admin_user)
+            db.session.commit()
+            print("Added sample admin user: admin/admin_password")
             return True
             
         except Exception as e:
-            print(f"❌ Failed to seed data: {e}")
+            print(f"Failed to seed data: {e}")
             db.session.rollback()
             return False
 
 def main():
     """Main function"""
-    print("🚀 Disaster Preparedness App - Database Reset Tool")
+    print("🚀 Disaster Preparedness App - Database Reset Tool (Automated)")
     print("=" * 60)
-    
-    # Confirm before proceeding
-    confirm = input("⚠️  WARNING: This will DELETE ALL DATA in the database. Continue? (yes/no): ")
-    if confirm.lower() not in ['yes', 'y']:
-        print("❌ Operation cancelled")
-        return
-    
+
+    # Automatically confirm for automated execution
+    print("⚠️  WARNING: This will DELETE ALL DATA in the database. Proceeding automatically...")
+
     # Reset database
     if reset_database():
-        # Ask about sample data
-        seed_choice = input("🌱 Add sample data for testing? (yes/no): ")
-        if seed_choice.lower() in ['yes', 'y']:
-            seed_sample_data()
-        
+        # Automatically add sample data
+        print("Adding sample data for testing automatically...")
+        seed_sample_data()
+
         print("\n✨ Database is ready for use!")
         print("🔗 You can now test user registration and other features.")
     else:

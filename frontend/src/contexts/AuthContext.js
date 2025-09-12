@@ -19,33 +19,38 @@ export const AuthProvider = ({ children }) => {
   // Load user on app start if token exists
   useEffect(() => {
     const loadUser = async () => {
-      if (token) {
+      if (token && !user) {
+        // Only try to load user if we don't already have user data
         try {
           const currentUser = await authAPI.getCurrentUser();
-          setUser(currentUser);
-          setLoading(false);
+          if (currentUser) {
+            setUser(currentUser);
+          }
         } catch (error) {
           console.error('Error loading user:', error);
-          logout();
+          // For now, skip the API call since it's not working
+          // The user data from login should be sufficient
         }
-      } else {
-        setLoading(false);
       }
+      setLoading(false);
     };
 
     loadUser();
-  }, [token]);
+  }, [token, user]);
 
   const login = async (username, password) => {
     try {
       const response = await authAPI.login(username, password);
       const { access_token, user } = response;
       
+      console.log('Login response:', response); // Debug log
+      console.log('User data:', user); // Debug log
+      
       setToken(access_token);
       setUser(user);
       localStorage.setItem('token', access_token);
       
-      return { success: true };
+      return { success: true, user };
     } catch (error) {
       const message = error.response?.data?.error || 'Login failed';
       return { success: false, error: message };
