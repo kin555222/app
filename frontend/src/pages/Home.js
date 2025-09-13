@@ -58,7 +58,7 @@ const Home = () => {
           <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
             <span className="bg-gradient-to-r from-red-600 to-orange-600 bg-clip-text text-transparent">🚨</span> 
             <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              Disaster Preparedness
+              Vajra
             </span>
             <br />
             <span className="text-gray-700">for India</span>
@@ -67,7 +67,7 @@ const Home = () => {
           <p className="text-xl md:text-2xl text-gray-600 mb-8 max-w-4xl mx-auto leading-relaxed">
             Building resilient Indian communities through accessible technology. 
             <span className="font-semibold text-blue-600">Prepare, respond, and recover</span> 
-            with our comprehensive emergency management system designed for Indian conditions.
+             with our comprehensive emergency management system designed for Indian conditions.
           </p>
           
           {/* Current Time Display */}
@@ -251,7 +251,7 @@ const Home = () => {
         {/* Key Features */}
         <div className="mt-20">
           <h2 className="text-3xl font-bold text-center text-gray-900 mb-12">
-            Why Choose Our Disaster Preparedness System?
+            Why Choose Vajra?
           </h2>
           
           <div className="grid md:grid-cols-2 gap-8">

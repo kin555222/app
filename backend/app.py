@@ -12,7 +12,7 @@ load_dotenv()
 app = Flask(__name__)
 
 # Configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///' + os.path.abspath(os.path.join(os.path.dirname(__file__), 'instance', 'disaster_prep.db')))
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///' + os.path.abspath(os.path.join(os.path.dirname(__file__), 'instance', 'vajra.db')))
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'your-secret-key-change-in-production')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)
@@ -149,7 +149,7 @@ app.register_blueprint(alert_bp, url_prefix='/api')
 
 @app.route('/')
 def home():
-    return jsonify({"message": "Disaster Preparedness API is running!"})
+    return jsonify({"message": "Vajra API is running!"})
 
 @app.route('/health')
 def health_check():
@@ -164,5 +164,5 @@ if __name__ == '__main__':
         print("Database initialization complete.")
     
     from waitress import serve
-    print("Starting Disaster Preparedness API on http://0.0.0.0:5000")
+    print("Starting Vajra API on http://0.0.0.0:5000")
     serve(app, host='0.0.0.0', port=5000)

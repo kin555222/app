@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Backend startup script for Disaster Preparedness App
+Backend startup script for Vajra
 """
 import os
 import sys
@@ -16,7 +16,7 @@ os.chdir(backend_dir)
 from app import app
 
 if __name__ == '__main__':
-    print("🚨 Starting Disaster Preparedness Backend Server...")
+    print("🚨 Starting Vajra Backend Server...")
     print("📍 Server will be available at: http://localhost:5000")
     print("📊 API endpoints available at: http://localhost:5000/api/")
     print("❤️  Health check at: http://localhost:5000/health")
