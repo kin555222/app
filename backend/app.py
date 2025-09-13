@@ -25,7 +25,16 @@ else:
 
 # Initialize extensions
 db.init_app(app)
-cors = CORS(app)
+
+# CORS configuration for production
+if os.getenv('FLASK_ENV') == 'production':
+    cors = CORS(app, origins=[
+        'https://frontend-ashen-eight-66.vercel.app',
+        'https://*.vercel.app'
+    ], supports_credentials=True)
+else:
+    cors = CORS(app, supports_credentials=True)  # Allow all origins in development
+
 jwt = JWTManager(app)
 
 # JWT Error Handlers
