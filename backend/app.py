@@ -147,18 +147,36 @@ app.register_blueprint(community_bp, url_prefix='/api')
 app.register_blueprint(message_bp, url_prefix='/api')
 app.register_blueprint(alert_bp, url_prefix='/api')
 
-# Initialize database on startup (for production)
-@app.before_first_request
-def initialize_database():
-    """Initialize database on first request"""
+# Initialize database immediately after app setup (non-blocking)
+def safe_init_database():
+    """Initialize database safely without blocking app startup"""
     try:
-        print("Initializing database on first request...")
+        print("Starting database initialization...")
         db.create_all()
-        ensure_database_schema()
-        seed_initial_data()
-        print("Database initialization complete.")
+        print("Database tables created")
+        
+        # Try schema check but don't fail if it doesn't work
+        try:
+            ensure_database_schema()
+        except Exception as schema_error:
+            print(f"Schema check failed (non-critical): {schema_error}")
+        
+        # Try to seed data but don't fail if it doesn't work
+        try:
+            seed_initial_data()
+        except Exception as seed_error:
+            print(f"Data seeding failed (non-critical): {seed_error}")
+            
+        print("Database initialization complete")
+        return True
     except Exception as e:
-        print(f"Database initialization failed on first request: {e}")
+        print(f"Database initialization failed: {e}")
+        print("App will continue running, database can be initialized via /init-db endpoint")
+        return False
+
+# Try to initialize database on startup (non-blocking)
+with app.app_context():
+    safe_init_database()
 
 @app.route('/')
 def home():
