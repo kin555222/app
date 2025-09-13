@@ -147,6 +147,19 @@ app.register_blueprint(community_bp, url_prefix='/api')
 app.register_blueprint(message_bp, url_prefix='/api')
 app.register_blueprint(alert_bp, url_prefix='/api')
 
+# Initialize database on startup (for production)
+@app.before_first_request
+def initialize_database():
+    """Initialize database on first request"""
+    try:
+        print("Initializing database on first request...")
+        db.create_all()
+        ensure_database_schema()
+        seed_initial_data()
+        print("Database initialization complete.")
+    except Exception as e:
+        print(f"Database initialization failed on first request: {e}")
+
 @app.route('/')
 def home():
     return jsonify({"message": "Vajra API is running!"})
@@ -154,6 +167,35 @@ def home():
 @app.route('/health')
 def health_check():
     return jsonify({"status": "healthy", "timestamp": datetime.utcnow().isoformat()})
+
+@app.route('/init-db')
+def init_database():
+    """Initialize database tables - for manual setup"""
+    try:
+        print("Manually initializing database...")
+        
+        # Force create all tables
+        db.create_all()
+        print("All tables created successfully")
+        
+        # Run the schema check
+        schema_result = ensure_database_schema()
+        seed_result = seed_initial_data()
+        
+        return jsonify({
+            "status": "success",
+            "message": "Database initialized successfully",
+            "schema_check": schema_result,
+            "data_seeded": seed_result,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+    except Exception as e:
+        print(f"Database initialization failed: {e}")
+        return jsonify({
+            "status": "error",
+            "message": f"Database initialization failed: {str(e)}",
+            "timestamp": datetime.utcnow().isoformat()
+        }), 500
 
 if __name__ == '__main__':
     # Initialize database on startup
