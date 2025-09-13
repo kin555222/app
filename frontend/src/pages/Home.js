@@ -67,7 +67,7 @@ const Home = () => {
           <p className="text-xl md:text-2xl text-gray-600 mb-8 max-w-4xl mx-auto leading-relaxed">
             Building resilient Indian communities through accessible technology. 
             <span className="font-semibold text-blue-600">Prepare, respond, and recover</span> 
-             with our comprehensive emergency management system designed for Indian conditions.
+            with our comprehensive emergency management system designed for Indian conditions.
           </p>
           
           {/* Current Time Display */}

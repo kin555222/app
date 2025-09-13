@@ -41,7 +41,7 @@ const Navbar = () => {
               onClick={closeMobileMenu}
             >
               <span className="text-2xl">🚨</span>
-              <span className="hidden sm:inline">Disaster Prep</span>
+              <span className="hidden sm:inline">Vajra</span>
               <span className="sm:hidden">Emergency</span>
             </Link>
             
